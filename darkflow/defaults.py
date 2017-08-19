@@ -4,7 +4,7 @@ class argHandler(dict):
     __setattr__ = dict.__setitem__
     __delattr__ = dict.__delitem__
     _descriptions = {'help, --h, -h': 'show this super helpful message and exit'}
-    
+
     def setDefaults(self):
         self.define('imgdir', './sample_img/', 'path to testing directory with images')
         self.define('binary', './bin/', 'path to .weights directory')
@@ -42,16 +42,16 @@ class argHandler(dict):
         self.define('steps', '[10,5000,10000,15000,20000]', 'steps for changing learning rate')
         self.define('scales', '[1,0.1,0.1,0.1,0.1]', 'scales for changing learning rate')
         self.define('val_steps',100, 'validation to be peformed after this number of steps')
-        self.define('val_summary', 'gs:./summary/', 'path to TensorBoard validation summaries directory')
-        self.define('bucket', '../../bucket', 'path to bucket')
-    
-    
+        self.define('val_summary', '', 'path to TensorBoard validation summaries directory')
+        self.define('bucket', '', 'path to bucket')
+
+
         self.define('loss_avg', 0, 'A global variable to be used in flow.py and yolov1/data.py')
         self.define('batchperepoch',0,'A global variable to be used in flow.py and yolov1/data.py')
     def define(self, argName, default, description):
         self[argName] = default
         self._descriptions[argName] = description
-    
+
     def help(self):
         print('Example usage: flow --imgdir sample_img/ --model cfg/yolo.cfg --load bin/yolo.weights')
         print('')
@@ -99,7 +99,7 @@ class argHandler(dict):
                         print('ERROR - Expected int for argument: ' + args[i])
                         print('Try running flow --help')
                         exit()
-                        
+
                 self[argumentName] = args[i + 1]
                 print (argumentName, args[i+1])
                 i += 1

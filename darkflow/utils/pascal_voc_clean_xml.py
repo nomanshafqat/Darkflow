@@ -8,25 +8,25 @@ import xml.etree.ElementTree as ET
 import glob
 
 
-def _pp(l): # pretty printing 
+def _pp(l): # pretty printing
     for i in l: print('{}: {}'.format(i,l[i]))
 
 def pascal_voc_clean_xml(ANN, pick, exclusive = False,parseOne=False):
 
-    
+
     #print(ANN,pick)
     dumps = list()
     annotations=[]
     cur_dir = os.getcwd()
-    
-    
+
+
     if(parseOne==False):
         print('Parsing for {} {}'.format(
             pick, 'exclusively' * int(exclusive)))
         os.chdir(ANN)
         annotations = os.listdir('.')
         #print(annotations)
-        #print(ANN)	
+        #print(ANN)
         i=0
         for a in annotations:
             annotations[i]=ANN+"/"+a
@@ -36,12 +36,14 @@ def pascal_voc_clean_xml(ANN, pick, exclusive = False,parseOne=False):
     if(parseOne!=False):
         #print "one file being read file"
         annotations=[parseOne]
-    
-    
+
+
     size = len(annotations)
     for i, file in enumerate(annotations):
+        if ".DS_Store"  in file:
+            continue
         if(parseOne==False):
-            # progress bar      
+            # progress bar
             sys.stdout.write('\r')
             percentage = 1. * (i+1) / size
             progress = int(percentage * 20)
@@ -49,8 +51,8 @@ def pascal_voc_clean_xml(ANN, pick, exclusive = False,parseOne=False):
             bar_arg += [file]
             sys.stdout.write('[{}>{}]{:.0f}%  {}'.format(*bar_arg))
             sys.stdout.flush()
-            
-        # actual parsing 
+
+        # actual parsing
         in_file = open(file)
         tree=ET.parse(in_file)
         root = tree.getroot()
@@ -94,7 +96,7 @@ def pascal_voc_clean_xml(ANN, pick, exclusive = False,parseOne=False):
         print('Dataset size: {}'.format(len(dumps)))
 
     os.chdir(cur_dir)
-    
-    
+
+
 
     return dumps

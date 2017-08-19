@@ -46,9 +46,9 @@ def postprocess(self, net_out, im, save=True):
     h, w, _ = imgcv.shape
 
     resultsForJSON = []
-    
+
     predictedBoxes=[]
-    
+
     for b in boxes:
 
         boxResults = self.process_box(b, h, w, threshold)
@@ -62,24 +62,25 @@ def postprocess(self, net_out, im, save=True):
                 {"label": mess, "confidence": float('%.2f' % confidence), "topleft": {"x": left, "y": top},
                  "bottomright": {"x": right, "y": bot}})
             continue
-        
-        
+
+
         #print self.FLAGS.val_annotations, [left, top, right, bot]
 
-        predictedBoxes.append([left, top, right, bot])
+        predictedBoxes.append([mess,left, top, right, bot])
         cv2.rectangle(imgcv,
                       (left, top), (right, bot),
                       colors[max_indx], thick)
         cv2.putText(imgcv, mess, (left, top - 12),
                     0, 1e-3 * h, colors[max_indx], thick // 3)
-                    
-                    
 
-    img_name = os.path.join(self.FLAGS.val_annotation, os.path.basename(im[0:len(im)-3]+"xml"))    
-    #print img_name           
-    find_accuracy(predictedBoxes,predictedBoxes,img_name)
-    
-    
+
+
+    xml_name = os.path.join(self.FLAGS.val_annotation, os.path.basename(im[0:len(im)-3]+"xml"))
+    print (xml_name)
+    #print (predictedBoxes)
+    find_accuracy(self,predictedBoxes,predictedBoxes,xml_name)
+
+
     if not save: return imgcv
 
     outfolder = os.path.join(self.FLAGS.imgdir, 'out')

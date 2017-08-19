@@ -5,7 +5,7 @@ import tensorflow as tf
 import pickle
 from subprocess import call
 from multiprocessing.pool import ThreadPool
-
+from ..utils.IoU import find_accuracy
 train_stats = (
     'Training statistics: \n'
     '\tLearning rate : {}\n'
@@ -18,10 +18,10 @@ train_stats = (
 def _save_ckpt(self, step, loss_profile):
     file = '{}-{}{}'
     model = self.meta['name']
-    
+
     profile = file.format(model, step, '.profile')
     profile = os.path.join(self.FLAGS.backup, profile)
-    with open(profile, 'wb') as profile_ckpt: 
+    with open(profile, 'wb') as profile_ckpt:
         pickle.dump(loss_profile, profile_ckpt)
 
     ckpt = file.format(model, step, '')
@@ -34,7 +34,7 @@ def _save_ckpt(self, step, loss_profile):
     local_path = os.path.join(self.FLAGS.backup)
     print local_path, bucket_path
     call(["gsutil", "-m", "rsync", "-r", local_path, bucket_path])
- 
+
     print("Upload tensorboard for train")
 
     bucket_path = os.path.join(self.FLAGS.bucket, "tb_train_4")
@@ -64,57 +64,56 @@ def train(self):
     loss_ph = self.framework.placeholders
     loss_mva = None; profile = list()
     loss_mva_valid = None
-        
+
     batches = self.framework.shuffle()
     val_batches = self.framework.shuffle(training = False)
     loss_op = self.framework.loss
-    
-    
-    
-    
+
+
+
+
     print(self.FLAGS.batchperepoch)
     for i, (x_batch, datum) in enumerate(batches):
 
-    
+
         if not i: self.say(train_stats.format(
             self.FLAGS.lr, self.FLAGS.batch,
             self.FLAGS.epoch, self.FLAGS.save,self.FLAGS.val_steps
         ))
 
         feed_dict = {
-            loss_ph[key]: datum[key] 
+            loss_ph[key]: datum[key]
                 for key in loss_ph }
         feed_dict[self.inp] = x_batch
         feed_dict.update(self.feed)
 
         feed_dict[self.learning_rate] = lr
-        
-        '''
-        idx = np.where(arg_steps[:] == i + 1)[0]
-       
-        if len(idx):
-            new_lr = lr * arg_scales[idx][0]
-            lr = new_lr
-            feed_dict[self.learning_rate] = lr
-            print("\nSTEP {} - UPDATE LEARNING RATE TO {:.6}".format(i+1, new_lr))
-        '''
-        fetches = [self.train_op, loss_op, self.summary_op] 
+
+        #idx = np.where(arg_steps[:] == i + 1)[0]
+
+        #if len(idx):
+            #new_lr = lr * arg_scales[idx][0]
+            #lr = new_lr
+            #feed_dict[self.learning_rate] = lr
+            #print("\nSTEP {} - UPDATE LEARNING RATE TO {:.6}".format(i+1, new_lr))
+
+        fetches = [self.train_op, loss_op, self.summary_op]
         fetched = self.sess.run(fetches, feed_dict)
         loss = fetched[1]
-        
+
 
         if loss_mva is None: loss_mva = loss
         loss_mva = .9 * loss_mva + .1 * loss
         step_now = self.FLAGS.load + i + 1
-        
-        
+
+
         batchperepoch=self.FLAGS.batchperepoch
-        
+
         if self.FLAGS.loss_avg ==0: self.FLAGS.loss_avg = loss
         self.FLAGS.loss_avg = ((i%batchperepoch) * self.FLAGS.loss_avg +  loss)/((i%batchperepoch)+1)
 
-        
-        
+
+
         self.writer.add_summary(fetched[2], step_now)
 
         form = 'step {} -batch {}/{} - loss {} - moving ave loss {} - avg loss epoch {}'
@@ -129,28 +128,29 @@ def train(self):
         #validation time
         if (i+1) % self.FLAGS.val_steps == 0:
             print(i,self.FLAGS.val_steps)
+            for nbtch in range (0,1):
+                (x_batch, datum) = next(val_batches)
 
-            (x_batch, datum) = next(val_batches)
+                feed_dict = {
+                    loss_ph[key]: datum[key]
+                        for key in loss_ph }
+                feed_dict[self.inp] = x_batch
+                feed_dict.update(self.feed)
+                feed_dict[self.learning_rate] = lr
 
-            feed_dict = {
-                loss_ph[key]: datum[key] 
-                    for key in loss_ph }
-            feed_dict[self.inp] = x_batch
-            feed_dict.update(self.feed)
-            feed_dict[self.learning_rate] = lr
+                fetches = [loss_op, self.summary_op]
+                fetched = self.sess.run(fetches, feed_dict)
+                loss = fetched[0]
 
-            fetches = [loss_op, self.summary_op] 
-            fetched = self.sess.run(fetches, feed_dict)
-            loss = fetched[0]
+                if loss_mva_valid is None: loss_mva_valid = loss
+                loss_mva_valid = .9 * loss_mva_valid + .1 * loss
 
-            if loss_mva_valid is None: loss_mva_valid = loss
-            loss_mva_valid = .9 * loss_mva_valid + .1 * loss
+                self.val_writer.add_summary(fetched[1], step_now)
 
-            self.val_writer.add_summary(fetched[1], step_now)
-
-            form = 'VALIDATION at step {} - loss {} - moving ave loss {}'
-            self.say(form.format(step_now, loss, loss_mva_valid))
+                form = 'VALIDATION at step {} - loss {} - moving ave loss {}'
+                self.say(form.format(step_now, loss, loss_mva_valid))
             predict(self)
+
 
     if ckpt: _save_ckpt(self, *args)
 
@@ -187,7 +187,7 @@ import math
 def predict(self):
     #TODO inp_path = self.FLAGS.imgdir
     inp_path = self.FLAGS.val_dataset
-    
+
     all_inps = os.listdir(inp_path)
     all_inps = [i for i in all_inps if self.framework.is_inp(i)]
     if not all_inps:
@@ -214,24 +214,30 @@ def predict(self):
         this_batch = new_all
 
         # Feed to the net
-        feed_dict = {self.inp : np.concatenate(inp_feed, 0)}    
+        feed_dict = {self.inp : np.concatenate(inp_feed, 0)}
         self.say('Forwarding {} inputs ...'.format(len(inp_feed)))
         start = time.time()
         out = self.sess.run(self.out, feed_dict)
         stop = time.time(); last = stop - start
-        self.say('Total time = {}s / {} inps = {} ips'.format(
-            last, len(inp_feed), len(inp_feed) / last))
+        #self.say('Total time = {}s / {} inps = {} ips'.format(
+        #    last, len(inp_feed), len(inp_feed) / last))
 
         # Post processing
         self.say('Post processing {} inputs ...'.format(len(inp_feed)))
         start = time.time()
+
+        for i,prediction in enumerate(out):
+            self.framework.postprocess( prediction, os.path.join(inp_path, this_batch[i]))
+
+
+        '''
         pool = ThreadPool()
         pool.map(lambda p: (lambda i, prediction:
             self.framework.postprocess(
-               prediction, os.path.join(inp_path, this_batch[i])))(*p),
+               prediction, os.path.join(inp_path, this_batch[i])) )(*p),
             enumerate(out))
         stop = time.time(); last = stop - start
-
+        '''
         # Timing
-        self.say('Total time = {}s / {} inps = {} ips'.format(
-            last, len(inp_feed), len(inp_feed) / last))
+        #self.say('Total time = {}s / {} inps = {} ips'.format(
+        #    last, len(inp_feed), len(inp_feed) / last))
